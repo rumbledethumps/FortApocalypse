@@ -20,6 +20,16 @@ The ROM is `build/cc65/release/fort.rp6502`. Run it in the emulator with
 `tools/rp6502-emu build/cc65/release/fort.rp6502`, or on a Picocomputer.
 In VS Code, choose a cc65 preset and press F5.
 
+The tests in the `tests` folder are a host C program, built with the
+host's own compiler, that runs the Release ROM in the emulator and checks
+what it does. They use [utest.h](https://github.com/sheredom/utest.h).
+
+```bash
+$ cmake -S tests -B build/tests
+$ cmake --build build/tests
+$ ctest --test-dir build/tests --output-on-failure
+```
+
 ## Notes
 
 ### Files in the atari folder:

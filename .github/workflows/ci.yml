@@ -42,6 +42,15 @@ jobs:
           cmake --build --preset cc65/Release
           echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      # The tests are a host program that runs the ROM in the emulator,
+      # which the configure above fetched into tools/.
+      - name: Test
+        run: |
+          set -euo pipefail
+          cmake -S tests -B build/tests
+          cmake --build build/tests
+          ctest --test-dir build/tests --output-on-failure
+
       # Not zipped, so the download is the ROM file itself, as on a release.
       - uses: actions/upload-artifact@v7
         if: github.ref != 'refs/heads/master'
