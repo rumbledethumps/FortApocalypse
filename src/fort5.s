@@ -10,31 +10,6 @@
 ; SOUNDS
 ;
 ;
-DO_CHECKSUM2:
-         LDY #0
-         STY TEMP1
-         STY ADR1
-         LDA #$90
-         STA ADR1+1
-         CLC
-;
-@1:      ADC (ADR1),Y
-         BCC @2
-         INC TEMP1
-@2:      INY
-         BNE @1
-         INC ADR1+1
-         LDX ADR1+1
-         CPX #$B0
-         BNE @1
-         CMP #0
-         BNE @4
-         LDA TEMP1
-         CMP #0
-         BEQ @3
-@4:      .byte $12
-@3:      RTS
-;
 MOVE_SLAVES:
          LDX SLAVE_NUM
 ;
@@ -58,7 +33,6 @@ MOVE_SLAVES:
          JSR S_ERASE
          JSR S_MOVE
          JSR S_DRAW
-         DEC S_MOVE         ; PROT
 ;
 @3:      LDX SLAVE_NUM
          INX
@@ -273,7 +247,6 @@ CHECK_FUEL_BASE:
          BCS @9
 @2:      LDA #REFUEL
          STA FUEL_STATUS
-         ASL COMPUTE_MAP_ADR ; PROT
          LDA #1
          STA TIM4_VAL
          LDA #4
@@ -394,7 +367,6 @@ SET_SCANNER:
          LDA #0
          STA TEMP1
          STA TEMP2
-         INC DRAW_MAP       ; PROT
          LDA SY
          BEQ @2
          BMI @2
@@ -529,30 +501,6 @@ CHECK_FORT:
          RTS
 ;
 @1:
-DO_CHECKSUM1:
-         LDY #0
-         STY TEMP1
-         STY ADR1
-         LDA #$90
-         STA ADR1+1
-         CLC
-;
-@1:      ADC (ADR1),Y
-         BCC @2
-         INC TEMP1
-@2:      INY
-         BNE @1
-         INC ADR1+1
-         LDX ADR1+1
-         CPX #$B0
-         BNE @1
-         CMP #0
-         BNE @4
-         LDA TEMP1
-         CMP #0
-         BEQ @3
-@4:      .byte $12
-@3:
 ;
 NEXT_PART1:
          LDX #$00
@@ -669,7 +617,7 @@ LINE1:   PHA
 ;
          LDX #0
 @1:      TXA
-         STA WSYNC
+         JSR WSYNC
          ASL
          ORA #$E0
          STA COLBK
@@ -695,7 +643,7 @@ LINE2:
 ;
          LDX #7
 @1:      TXA
-         STA WSYNC
+         JSR WSYNC
          ASL
          ORA #$E0
          STA COLBK
@@ -723,7 +671,7 @@ LINE3:
          ADC #8
          STA HPOSP3
          LDA #>CHR_SET2
-         STA WSYNC
+         JSR WSYNC
          STA CHBASE
          LDA BAK_COLOR
          STA COLPF0
@@ -733,7 +681,7 @@ LINE3:
          STA COLPF2
          LDA FRAME
          STA COLPF3
-         STA WSYNC
+         JSR WSYNC
          LDA BAK2_COLOR
          STA COLBK
          PLP
@@ -758,7 +706,7 @@ LINE4:
 @0:      STA HPOSP0,X
          DEX
          BPL @0
-         STA WSYNC
+         JSR WSYNC
          STA COLBK
          LDA MODE
          CMP #STOP_MODE
@@ -774,18 +722,6 @@ LINE4:
          TAX
          PLA
          RTI
-;
-DO_CHECKSUM3:
-         LDX #0
-         TXA
-         CLC
-@1:      ADC $B980,X
-         INX
-         BNE @1
-         CMP #$0
-         BEQ @2
-         .byte $12
-@2:      RTS
 ;
 DO_SOUNDS:
 ;

@@ -167,12 +167,7 @@ TITLE:
          LDY #>T_4
          JSR PRINT
 ;
-T1:
-         LDA VCOUNT
-         ASL
-         STA WSYNC
-         STA COLPF3
-         JMP T1
+T1:      JMP RAINBOW
 ;
 T2:
          LDA FRAME
@@ -268,8 +263,7 @@ T3:      SEI
          LDA #>VERTBLKD
          STA VVBLKD+1
          JSR SCREEN_OFF
-@1:      LDA VCOUNT
-         BNE @1
+         JSR LEAVE_VBI
          LDA #$C0
          STA NMIEN
          CLI
@@ -286,6 +280,7 @@ MAIN:
          LDA MODE
          CMP #GO_MODE
          BNE @6
+         JSR PACE
          JSR MOVE_PODS
          JSR MOVE_TANKS
          JSR MOVE_CRUISE_MISSILES
@@ -374,7 +369,6 @@ DO_LEVEL_1:
          STA ADR1+1
          DEC TEMP2
          BNE @2
-         DEC MAIN+32         ; PROT
          LDA #NEW_LEVEL_MODE
          STA MODE
 @1:      RTS
@@ -414,7 +408,6 @@ DO_LEVEL_2:
          BNE PSL
          INC LEVEL   ; =2
          JSR GIVE_BONUS
-         ASL M_NEW_PLAYER    ; PROT
          LDA #NEW_LEVEL_MODE
          STA MODE
 @1:      RTS
@@ -433,7 +426,6 @@ DO_LEVEL_3:
          BCS @1
          JSR GIVE_BONUS
          INC LEVEL   ; =3
-         DEC M_GAME_OVER
          LDA #GAME_OVER_MODE
          STA MODE
 @1:      RTS
@@ -494,11 +486,11 @@ CHR2_L = *-CHR2
 ;
 PACK_ADR:
 ; LEVEL.1
- .word PACKED_MAP+$000
+ .word PACKED_MAP_1
 ; LEVEL.2
- .word PACKED_MAP+$62B
+ .word PACKED_MAP_2
 ; LEVEL.1
- .word PACKED_MAP+$000
+ .word PACKED_MAP_1
 ;
 CHECK_MODES:
          LDA MODE
@@ -515,7 +507,7 @@ CHECK_MODES:
          BNE @30
          JMP M_NEW_PLAYER
 ;
-@30:     ROL CHECK_MODES     ; PROT
+@30:
          RTS
 ;
 M_START:
@@ -554,7 +546,7 @@ M_START:
 ;        CPY #0      ON
          BNE @0
          LDA #2
-@0:      STA MAIN            ; PROT
+@0:
          STA CHOP_LEFT
          LDX PILOT_SKILL
          LDA LASER_TAB,X
@@ -628,7 +620,6 @@ M_NEW_PLAYER:
          LDA FUEL_STATUS
          CMP #EMPTY
          BNE @10
-         DEC UPDATE_CHOPPER  ; PROT
          LDA #FULL
          STA FUEL_STATUS
          LDX #0
@@ -660,7 +651,6 @@ M_NEW_PLAYER:
          LDA CHOP_LEFT
          JSR DDIG
 ;
-         JSR DO_CHECKSUM2
          LDX #75
          JSR WAIT_FRAME
 ;
@@ -748,7 +738,6 @@ M_NEW_LEVEL:
          LDA #8
          STA CHOPPER_ANGLE
          JSR SAVE_POS
-         JSR DO_CHECKSUM3
          LDA #$99
          STA BONUS1
          STA BONUS2
@@ -928,7 +917,6 @@ MAKE_CONTURE:
          INC ADR2+1
 @53:     DEX
          BPL @50
-         INC MAIN            ; PROT
 ;
 S_BEGIN:
          LDX #8
@@ -1009,9 +997,9 @@ LEVEL_START:
  .byte $6D,$FF
  .byte $6E,$18
 SCAN_INFO:
- .word PACKED_SCAN+0   ; LVL 1
- .word PACKED_SCAN+$1E9  ; LVL 2
- .word PACKED_SCAN+0   ; LVL 1
+ .word PACKED_SCAN_1  ; LVL 1
+ .word PACKED_SCAN_2  ; LVL 2
+ .word PACKED_SCAN_1  ; LVL 1
 TANK_START_X_L1:
  .byte $53,$63,$90,$A0,$59,$AE
 TANK_START_Y_L1:
@@ -1184,7 +1172,6 @@ M_GAME_OVER:
          JSR PRINT
          LDA #<-1
          STA TIM6_VAL
-         ROR SCREEN_OFF      ; PROT
          LDA #TITLE_MODE
          STA MODE
 ;        LDA #1

@@ -7,12 +7,14 @@ This is mainly being released for historical reasons. The original code is in th
 
 ## Picocomputer 6502
 
-The `src` folder holds the original program converted to the ca65 syntax of
-the cc65 assembler. It assembles to the same bytes as the source in the
-`atari` folder, at the same addresses, with two exceptions: the label `FNT2`,
-which the preserved source never defines, and the cartridge header, which the
-preserved source overlaps with the last bytes of the panel text.
-`src/fort.cfg` keeps the original memory map.
+The `src` folder holds the game ported to the Picocomputer 6502. The game
+is the original program converted to the ca65 syntax of the cc65 assembler,
+at its original addresses (`fort1.s` to `fort8.s`, `fnt1.s`, `fnt2.s` and
+`fort.s`). Around it, the rest of `src` does the work of the Atari hardware
+and OS on the Picocomputer: `antic.s` draws the display lists with the VGA,
+`gtia.s` draws the players and missiles as sprites and finds their
+collisions, `pokey.s` plays the sound on the PSG, `input.s` reads the
+keyboard and gamepads, and `os.s` runs the vertical blank.
 
 The Picocomputer 6502 build uses the
 [RP6502 SDK](https://picocomputer.github.io/sdk.html) and the cc65 compiler.

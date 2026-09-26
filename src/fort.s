@@ -16,6 +16,10 @@
 ;
 ; SYSTEM EQUATES
 ;
+; On the Picocomputer these are RAM. The read registers of GTIA and POKEY
+; are $100 above their write registers, and RANDOM is RIA portal 1, which
+; reads a table of random bytes in XRAM.
+;
 FRAME    = $14
 ATTRACT  = $4D
 VDSLST   = $200
@@ -34,22 +38,22 @@ COLOR2   = $2C6
 COLOR3   = $2C7
 COLOR4   = $2C8
 DMACTL   = $D400
-M0PF     = $D000
-M1PF     = $D001
-M2PF     = $D002
-M3PF     = $D003
-P0PF     = $D004
-P1PF     = $D005
-P2PF     = $D006
-P3PF     = $D007
-M0PL     = $D008
-M1PL     = $D009
-M2PL     = $D00A
-M3PL     = $D00B
-P0PL     = $D00C
-P1PL     = $D00D
-P2PL     = $D00E
-P3PL     = $D00F
+M0PF     = $D100
+M1PF     = $D101
+M2PF     = $D102
+M3PF     = $D103
+P0PF     = $D104
+P1PF     = $D105
+P2PF     = $D106
+P3PF     = $D107
+M0PL     = $D108
+M1PL     = $D109
+M2PL     = $D10A
+M3PL     = $D10B
+P0PL     = $D10C
+P1PL     = $D10D
+P2PL     = $D10E
+P3PL     = $D10F
 COLPM0   = $D012
 COLPM1   = $D013
 COLPM2   = $D014
@@ -61,11 +65,11 @@ COLPF3   = $D019
 COLBK    = $D01A
 HITCLR   = $D01E
 CHBASE   = $D409
-RANDOM   = $D20A
+RANDOM   = $FFE8
 CHBAS    = $2F4
 CH       = $2FC
 CH2      = $2F2
-KBCODE   = $D209
+KBCODE   = $D309
 GRACTL   = $D01D
 SIZEP0   = $D008
 SIZEP1   = $D009
@@ -81,15 +85,13 @@ HPOSM1   = $D005
 HPOSM2   = $D006
 HPOSM3   = $D007
 SIZEM    = $D00C
-CONSOL   = $D01F
+CONSOL   = $D11F
 NMIEN    = $D40E
 DLIST    = $D402
 HSCROL   = $D404
 VSCROL   = $D405
-WSYNC    = $D40A
-VCOUNT   = $D40B
 STICK    = $278
-TRIG0    = $D010
+TRIG0    = $D110
 AUDF1    = $D200
 AUDC1    = $D201
 AUDF2    = $D202
@@ -100,7 +102,7 @@ AUDF4    = $D206
 AUDC4    = $D207
 AUDCTL   = $D208
 SKCTL    = $D20F
-SKSTAT   = $D20F
+SKSTAT   = $D30F
 CDTMV1   = $218
 CDTMV2   = $21A
 CDTMA1   = $226
@@ -125,21 +127,20 @@ CHECK_SUM = $264C
 ; WHEN PROGRAM NEED TO GO MOBILE
 ;
 ;                START    LEN
+; The panel, the in-game display list and the pod tables are out of the
+; stack page and the character sets, which the Picocomputer uses.
 PLAYER       = $0         ; $800  R
 PLAY_SCRN    = $300       ; $300  R
 CHR_SET1     = $800       ; $400  R
 CHR_SET2     = $C00       ; $400  R
-POD_1        = $C00+920   ; $4E   R
+POD_1        = $4200      ; $4E   R
 POD_2        = $3925      ; $9B   R
 MAP          = $1100+3    ; $2800 R
 SLAVES       = $3904      ; $20   R
 SCANNER      = $39C0      ; $640  R
-RAM1_STUFF   = $C00+144   ; $48
-RAM2_STUFF   = $100
-PL           = $8000
-PACKED_MAP   = PL         ; $D34
-PACKED_SCAN  = PL+$D34    ; $4ED
-PROGRAM      = PL+$1221   ; $2D2C
+RAM1_STUFF   = $4000      ; $48
+RAM2_STUFF   = $4100
+PROGRAM      = $9221      ; $2D2C
 S_LINE1        = CHR_SET1+736
 S_LINE2        = CHR_SET1+832
 S_LINE3        = CHR_SET1+928
@@ -238,8 +239,10 @@ SLAVE_DX     = SLAVE_Y+8
 ;
          .include "fort7.s"
 ;
-         .segment "CODE"
+         .segment "CART"
          .export CART_START
+         .import WSYNC, RAINBOW, LEAVE_VBI, PACE
+         .import PACKED_MAP_1, PACKED_MAP_2, PACKED_SCAN_1, PACKED_SCAN_2
 ;
 ;
 ;
@@ -259,11 +262,6 @@ SLAVE_DX     = SLAVE_Y+8
          .include "fort8.s"
 ;
 END_CART:
-         .segment "CARTHDR"
-         .word CART_START
-         .byte $00
-         .byte %10000100
-         .word CART_START
 ;
 ; EOF
 ;
