@@ -7,6 +7,13 @@ This is mainly being released for historical reasons. The original code is in th
 
 ## Picocomputer 6502
 
+The `src` folder holds the original program converted to the ca65 syntax of
+the cc65 assembler. It assembles to the same bytes as the source in the
+`atari` folder, at the same addresses, with two exceptions: the label `FNT2`,
+which the preserved source never defines, and the cartridge header, which the
+preserved source overlaps with the last bytes of the panel text.
+`src/fort.cfg` keeps the original memory map.
+
 The Picocomputer 6502 build uses the
 [RP6502 SDK](https://picocomputer.github.io/sdk.html) and the cc65 compiler.
 Install the tools as that page describes, then build the ROM:
