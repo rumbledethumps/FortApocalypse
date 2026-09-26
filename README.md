@@ -1,13 +1,28 @@
 # Fort Apocalypse
 The original Atari 400/800 6502 assembly code for the classic game Fort Apocalypse.
 
-This is mainly being released for historical reasons. This requires a copy of SynAssembler to assemble.
+This is mainly being released for historical reasons. The original code is in the `atari` folder and requires a copy of SynAssembler to assemble.
 
 ![Fort Apocalypse](images/FortApocalypse.gif)
 
+## Picocomputer 6502
+
+The Picocomputer 6502 build uses the
+[RP6502 SDK](https://picocomputer.github.io/sdk.html) and the cc65 compiler.
+Install the tools as that page describes, then build the ROM:
+
+```bash
+$ cmake --preset cc65/Release
+$ cmake --build --preset cc65/Release
+```
+
+The ROM is `build/cc65/release/fort.rp6502`. Run it in the emulator with
+`tools/rp6502-emu build/cc65/release/fort.rp6502`, or on a Picocomputer.
+In VS Code, choose a cc65 preset and press F5.
+
 ## Notes
 
-### Files:
+### Files in the atari folder:
 	LEVEL.1P	Level 1. Pre ship.
 	LEVEL.2P	Level 2. Pre ship.
 	LEVEL.1N	Level 1. Shipped.

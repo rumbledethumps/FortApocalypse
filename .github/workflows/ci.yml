@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # The run for each commit to master is in a separate group. With one
+  # shared group, a third push cancels the second run while it waits, and
+  # that commit then gets no release and no failure. Pull request runs still
+  # cancel older runs.
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/master' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  fort:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Steps run without a login shell, so the PATH line that the installer
+      # adds to the profile does not apply to them.
+      - name: Install cc65
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/picocomputer/.github/main/install/cc65.sh | sh
+          echo "$HOME/.rp6502/cc65/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        id: build
+        run: |
+          set -euo pipefail
+          cmake --preset cc65/Release
+          cmake --build --preset cc65/Release
+          echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Not zipped, so the download is the ROM file itself, as on a release.
+      - uses: actions/upload-artifact@v7
+        if: github.ref != 'refs/heads/master'
+        with:
+          path: build/cc65/release/fort.rp6502
+          archive: false
+
+      - name: Publish the release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ steps.build.outputs.sha }}
+          # Without this the tag is created on whatever the default branch
+          # points at when the release is published, not on what was built.
+          target_commitish: ${{ github.sha }}
+          name: Fort Apocalypse ${{ steps.build.outputs.sha }}
+          files: build/cc65/release/fort.rp6502
+          fail_on_unmatched_files: true
+          body: |
+            Fort Apocalypse for the Picocomputer 6502, built with cc65.
+
+            Run fort.rp6502 in the emulator, or load it on a Picocomputer.
+
+            https://picocomputer.github.io
