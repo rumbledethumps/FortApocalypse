@@ -58,6 +58,27 @@ jobs:
           path: build/cc65/release/fort.rp6502
           archive: false
 
+      # The web build of the emulator from the latest Picocomputer release,
+      # with the ROM in place of its sample program.
+      - name: Make the web page
+        if: github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download --repo picocomputer/rp6502 --pattern '*-itch.io.zip' --dir build/web
+          unzip -q build/web/*-itch.io.zip -d build/site
+          rm build/site/*.rp6502 build/site/README.txt
+          cp build/cc65/release/fort.rp6502 build/site/
+          sed -i -e "s|rom: *'[^']*'|rom:    'fort.rp6502'|" \
+                 -e "s|title: *'[^']*'|title:  'Fort Apocalypse'|" build/site/index.html
+          grep -q "rom:    'fort.rp6502'" build/site/index.html
+
+      - uses: actions/upload-pages-artifact@v5
+        if: github.ref == 'refs/heads/master'
+        with:
+          path: build/site
+
       - name: Publish the release
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v3
@@ -75,3 +96,17 @@ jobs:
             Run fort.rp6502 in the emulator, or load it on a Picocomputer.
 
             https://picocomputer.github.io
+
+  pages:
+    needs: fort
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

@@ -3,7 +3,11 @@ The original Atari 400/800 6502 assembly code for the classic game Fort Apocalyp
 
 This is mainly being released for historical reasons. The original code is in the `atari` folder and requires a copy of SynAssembler to assemble.
 
-![Fort Apocalypse](images/FortApocalypse.gif)
+[![Play Fort Apocalypse](images/play.png)](https://rumbledethumps.github.io/FortApocalypse/)
+
+[Play it in your browser](https://rumbledethumps.github.io/FortApocalypse/),
+ported to the Picocomputer 6502 and running in its emulator. Click the
+game to start it with sound. The controls are below.
 
 ## Picocomputer 6502
 
@@ -40,7 +44,8 @@ $ cmake --build --preset cc65/Release
 
 The ROM is `build/cc65/release/fort.rp6502`. Run it in the emulator with
 `tools/rp6502-emu build/cc65/release/fort.rp6502`, or on a Picocomputer.
-In VS Code, choose a cc65 preset and press F5.
+In VS Code, choose a cc65 preset and press F5. Each push to master
+publishes the ROM with the web build of the emulator to GitHub Pages.
 
 The tests in the `tests` folder are a host C program, built with the
 host's own compiler, that runs the Release ROM in the emulator and checks
