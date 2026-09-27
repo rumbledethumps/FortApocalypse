@@ -12,13 +12,18 @@
 .include "xram.inc"
 
 .importzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp8
-.import xreg_call, xreg_buf, read_t2
+.import xreg_call, xreg_buf, read_t2, atari_cycles
 .import NTSC
-.export antic_init, antic_frame, antic_rainbow, WSYNC, color
+.export antic_init, antic_frame, antic_tiles, antic_rainbow, WSYNC, color
 .export sl_line, line_msc_lo, line_msc_hi, line_row, line_xoff, line_chbase
 .export snap_count, snap_line, snap_hpos, snap_color, snap_sizem
 
 MAX_SNAPS = 8
+
+; Glyphs converted to tiles a frame. The rest of a burst of changes waits
+; for the next frames.
+MAX_CONVERT = 8
+QUEUE = 64
 
 ; 6502 cycles from the first instruction of a display list interrupt to the
 ; end of the scanline where it starts. The fetches of ANTIC use most of the
@@ -32,6 +37,8 @@ DLI_OVERHEAD = 80
 
 .bss
 antic_rainbow: .res 1       ; nonzero while T1 colors the title
+units:         .res 2       ; line DMA of the frame, in units of 8 bytes
+bd_next:       .res 1       ; the backdrop row RIA_ADDR0 is at
 
 ; Per canvas row
 colbk_line: .res 240        ; COLBK
@@ -98,6 +105,10 @@ slot_page:   .res 2         ; CHBASE of the set in each slot, 0 for none
 slot_used:   .res 2         ; a band of this frame uses the slot
 slot_fresh:  .res 2         ; convert every glyph
 parity:      .res 1         ; the half of each set to compare
+q_head:      .res 1         ; changed glyphs waiting for tiles
+q_tail:      .res 1
+q_slot:      .res QUEUE
+q_glyph:     .res QUEUE
 
 .segment "SHADOW"
 shadow:      .res 2048      ; per slot, the glyphs in XRAM
@@ -126,7 +137,7 @@ antic_init:
         ; Force the first frame to program the VGA.
         lda #$FF
         sta prog_nbands
-        ; The backdrop bitmap and the Atari palette
+        ; The backdrop
         lda #1
         sta RIA_STEP0
         lda #<XRAM_BACKCFG
@@ -150,43 +161,42 @@ antic_init:
         sta RIA_RW0
         lda #>XRAM_BACKDROP
         sta RIA_RW0
-        lda #<XRAM_NTSC
+        lda #<XRAM_BACKPAL
         sta RIA_RW0
-        lda #>XRAM_NTSC
+        lda #>XRAM_BACKPAL
         sta RIA_RW0
-        lda #<XRAM_NTSC
-        sta RIA_ADDR0
-        lda #>XRAM_NTSC
-        sta RIA_ADDR0+1
-        ldx #0
-:       lda NTSC,x
-        sta RIA_RW0
-        inx
-        bne :-
-:       lda NTSC+256,x
-        sta RIA_RW0
-        inx
-        bne :-
-        ; An all-black backdrop, which the first frame keeps in step.
+        ; Row n of the bitmap is color n, so a row changes color with one
+        ; palette entry.
         lda #<XRAM_BACKDROP
         sta RIA_ADDR0
         lda #>XRAM_BACKDROP
         sta RIA_ADDR0+1
-        ldy #>(240 * 16)
-        ldx #<(240 * 16)
-:       stz RIA_RW0
-        dex
-        bne :-
+        ldx #0
+:       ldy #16
+:       stx RIA_RW0
         dey
-        bpl :-
-        ldx #239
+        bne :-
+        inx
+        cpx #240
+        bne :--
+        ; An all-black backdrop, which the first frame keeps in step.
+        lda #<XRAM_BACKPAL
+        sta RIA_ADDR0
+        lda #>XRAM_BACKPAL
+        sta RIA_ADDR0+1
+        lda #0
+        jsr color
+        ldx #0
 :       stz backdrop,x
-        dex
-        cpx #$FF
+        jsr put_ptr3
+        inx
+        cpx #240
         bne :-
         rts
 
 antic_frame:
+        stz units
+        stz units+1
         stz sl
         stz valid
         stz nlines
@@ -210,6 +220,33 @@ antic_frame:
         lda #1
         sta RIA_STEP0
         jsr snapshot
+        ; Player DMA fetches 5 bytes a scanline, missile DMA alone 1, on 240
+        ; scanlines, or on 120 at double-line resolution.
+        lda DMACTL
+        and #$0C
+        beq @pmdone
+        ldx #<(5 * 240)
+        ldy #>(5 * 240)
+        and #$08
+        bne :+
+        ldx #<240
+        ldy #>240
+:       lda DMACTL
+        and #$10
+        bne :+
+        tya
+        lsr
+        tay
+        txa
+        ror
+        tax
+:       txa
+        pha
+        tya
+        tax
+        pla
+        jsr add_cycles
+@pmdone:
         ; No display list without DL DMA and a playfield width.
         lda DMACTL
         and #$20
@@ -267,16 +304,38 @@ antic_frame:
         jsr blank_rows
         bra @next
 @end:
+        ; Line DMA, from units of 8 bytes
+        lda units
+        ldx units+1
+        ldy #3
+:       asl
+        pha
+        txa
+        rol
+        tax
+        pla
+        dey
+        bne :-
+        jsr add_cycles
         jsr close_band
         lda #240
         sec
         sbc sl
         beq :+
         jsr blank_rows
-:       jsr refresh_sets
+:       jsr write_bands
         jsr write_backdrop
-        jsr write_bands
         jmp program_vga
+
+; atari_cycles += XA
+add_cycles:
+        clc
+        adc atari_cycles
+        sta atari_cycles
+        txa
+        adc atari_cycles+1
+        sta atari_cycles+1
+        rts
 
 dl_inc:
         inc ptr1
@@ -302,6 +361,19 @@ run_dli:
         php
         jmp (VDSLST)
 @ret:
+        ; Display list interrupts are Atari interrupt time.
+        jsr read_t2
+        sta tmp1
+        stx tmp2
+        sec
+        lda dli_t2
+        sbc tmp1
+        tay
+        lda dli_t2+1
+        sbc tmp2
+        tax
+        tya
+        jsr add_cycles
         jsr commit_colbk
         lda dli_line
         sta valid
@@ -436,9 +508,11 @@ mode_line:
         and #$0F
         cmp #4
         beq @mode4
-        tax
         jsr close_band
         stz vs_prev
+        lda dl_ins
+        and #$0F
+        tax
         lda mode_height-2,x
         jmp blank_rows
 @mode4:
@@ -510,7 +584,23 @@ mode_line:
         lda CHBASE
         sta line_chbase,x
         inc nlines
-        phx
+        ; DMA fetches the characters on the first scanline and their glyph
+        ; bytes on every scanline.
+        lda tmp3
+        sec
+        sbc tmp2
+        ldy tmp5
+        cpy #48
+        bne :+
+        adc #7              ; carry is set
+:       tay
+        lda dma_units,y
+        clc
+        adc units
+        sta units
+        bcc :+
+        inc units+1
+:       phx
         jsr copy_line
         ldx nbands
         inc band_rows-1,x
@@ -532,6 +622,16 @@ mode_line:
         jsr close_band
         jsr run_dli
 :       rts
+
+; Line DMA in units of 8 bytes, by the scanlines of a line less one, for
+; 40 and 48 bytes a line
+dma_units:
+    .repeat 8, i
+        .byte 5 * (i + 2)
+    .endrepeat
+    .repeat 8, i
+        .byte 6 * (i + 2)
+    .endrepeat
 
 ; Scanlines of modes 2-15
 mode_height:
@@ -696,9 +796,9 @@ copy_bytes:
 ; Update the tiles of each slot a band uses from the glyphs in RAM. A new
 ; character set is converted whole. Otherwise half of each set is
 ; compared each frame, so a glyph changed in RAM is on the screen within
-; two frames. Each glyph has two tiles, the second for the glyph shown with
-; bit 7 set.
-refresh_sets:
+; two frames, or later in a burst of changes. Each glyph has two tiles, the
+; second for the glyph shown with bit 7 set.
+antic_tiles:
         lda parity
         eor #2
         sta parity
@@ -710,7 +810,29 @@ refresh_sets:
         lda slot_used+1
         beq :+
         jsr refresh_slot
-:       rts
+:       lda #MAX_CONVERT
+        sta tmp5
+@queue: ldy q_head
+        cpy q_tail
+        beq @done
+        lda q_slot,y
+        sta tmp1
+        lda q_glyph,y
+        sta tmp2
+        iny
+        tya
+        and #QUEUE-1
+        sta q_head
+        ; The tiles are of the shadow, which the next compare checks
+        ; against RAM.
+        jsr glyph_pointers
+        lda ptr2+1
+        sta ptr1+1
+        jsr convert_normal
+        jsr convert_inverse
+        dec tmp5
+        bne @queue
+@done:  rts
 
 refresh_slot:
         stx tmp1            ; slot
@@ -775,7 +897,7 @@ cp_dirty: txa
         ora tmp4
         sta tmp2
         phx
-        jsr glyph_changed
+        jsr glyph_queue
         plx
         bra cp_next
 
@@ -811,14 +933,35 @@ glyph_pointers:
 
 ; Glyph tmp2 of slot tmp1 changed: copy it to the shadow and convert it.
 glyph_changed:
+        jsr glyph_copy
+        jsr convert_normal
+        jmp convert_inverse
+
+; Glyph tmp2 of slot tmp1 changed: copy it to the shadow and queue it. A
+; full queue leaves it for the next compare.
+glyph_queue:
+        lda q_tail
+        inc a
+        and #QUEUE-1
+        cmp q_head
+        beq :+
+        ldy q_tail
+        sta q_tail
+        lda tmp1
+        sta q_slot,y
+        lda tmp2
+        sta q_glyph,y
+        jmp glyph_copy
+:       rts
+
+glyph_copy:
         jsr glyph_pointers
         ldy #7
 :       lda (ptr1),y
         sta (ptr2),y
         dey
         bpl :-
-        jsr convert_normal
-        jmp convert_inverse
+        rts
 
 ; RIA_ADDR0 = tile tmp2 of slot tmp1, plus A pages.
 tile_addr:
@@ -881,9 +1024,11 @@ convert_inverse:
         bne :-
         rts
 
-; The backdrop bitmap: COLBK a row. On the title, the rows of the text
-; take the COLPF3 of T1 instead.
+; The backdrop: COLBK a row. On the title, the rows of the text take the
+; COLPF3 of T1 instead.
 write_backdrop:
+        lda #$FF
+        sta bd_next
         ldx #0
         lda antic_rainbow
         bne @rainbow
@@ -917,27 +1062,21 @@ write_backdrop:
 ; Row X of the backdrop is color A.
 put_row:
         sta backdrop,x
-        tay
+        cpx bd_next
+        beq :+
         txa
-        asl
-        asl
-        asl
         asl
         sta RIA_ADDR0
-        txa
-        lsr
-        lsr
-        lsr
-        lsr
-        clc
-        adc #>XRAM_BACKDROP
+        lda #0
+        rol
+        adc #>XRAM_BACKPAL
         sta RIA_ADDR0+1
-        tya
-        ldy #16
-:       sta RIA_RW0
-        dey
-        bne :-
-        rts
+        lda backdrop,x
+:       inx
+        stx bd_next
+        dex
+        jsr color
+        jmp put_ptr3
 
 ; Band configurations and palettes.
 write_bands:

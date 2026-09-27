@@ -241,7 +241,7 @@ SLAVE_DX     = SLAVE_Y+8
 ;
          .segment "CART"
          .export CART_START
-         .import WSYNC, RAINBOW, LEAVE_VBI, PACE
+         .import WSYNC, RAINBOW, LEAVE_VBI
          .import PACKED_MAP_1, PACKED_MAP_2, PACKED_SCAN_1, PACKED_SCAN_2
 ;
 ;

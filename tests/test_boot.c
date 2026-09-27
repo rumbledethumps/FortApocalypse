@@ -1,11 +1,6 @@
-#include "emu.h"
+#include "fort.h"
 #include "utest.h"
 #include <string.h>
-
-/* Fixed addresses from the Atari memory map in src/fort.s. */
-#define PLAY_SCRN 0x0300
-#define CHR_SET1 0x0800
-#define CHR_SET2 0x0C00
 
 struct boot
 {
@@ -14,8 +9,7 @@ struct boot
 
 UTEST_F_SETUP(boot)
 {
-    ASSERT_TRUE(emu_start(&utest_fixture->emu, FORT_ROM));
-    ASSERT_TRUE(emu_ok(&utest_fixture->emu, "run 30"));
+    ASSERT_TRUE(fort_boot(&utest_fixture->emu));
 }
 
 UTEST_F_TEARDOWN(boot)

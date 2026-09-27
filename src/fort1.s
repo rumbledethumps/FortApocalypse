@@ -280,7 +280,6 @@ MAIN:
          LDA MODE
          CMP #GO_MODE
          BNE @6
-         JSR PACE
          JSR MOVE_PODS
          JSR MOVE_TANKS
          JSR MOVE_CRUISE_MISSILES

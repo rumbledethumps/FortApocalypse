@@ -23,8 +23,8 @@ nspr:       .res 1
 prev_nspr:  .res 1
 img:        .res 2          ; next sprite image in XRAM
 coll:       .res 16         ; M0PF-M3PF, P0PF-P3PF, M0PL-M3PL, P0PL-P3PL
-ext_first:  .res 5          ; first and last scanline with bits of
-ext_last:   .res 5          ; P0-P3 and the missiles
+ext_first:  .res 8          ; first and last scanline with bits of
+ext_last:   .res 8          ; P0-P3 and M0-M3
 cfg_lo:     .res 1
 
 ; Rows of an object between two snapshots
@@ -42,9 +42,19 @@ obj_size:   .res 1          ; missile width: 0 normal, 4 double, 8 quad
 obj_color:  .res 1
 row_first:  .res 1
 row_last:   .res 1
-pf_byte:    .res 1          ; the line byte the glyph byte is of
-pf_char:    .res 1
-pf_glyph:   .res 1
+
+; The playfield under the object being tested
+pf_bits:    .res 1          ; colors found: PF0 1, PF1 2, PF2 4, PF3 8
+pf_h:       .res 1          ; first color clock, 48 or more
+pf_lshift:  .res 1          ; pixels left of color clock 48
+pf_rmask:   .res 1          ; pixels left of color clock 208
+pf_line:    .res 1          ; mode line of pf_gl0-2
+pf_shift:   .res 1          ; pf_h in the first line byte
+pf_c3:      .res 3          ; the color of pixel value 3 of each byte
+
+; Player segments with rows and color clocks in common with the object
+ncand:      .res 1
+cand:       .res MAX_SEGS
 
 .rodata
 
@@ -56,14 +66,16 @@ mis_bits:
         .endrepeat
     .endrepeat
 
-; A glyph byte's leftmost pixel, 0-3, then the byte shifted left a pixel.
-pixel_value:
+; The pixels of a glyph byte of value 1, 2 and 3, leftmost in bit 7, as
+; the high nibble.
+.macro pixels_of v
     .repeat 256, i
-        .byte (i >> 6) & 3
+        .byte ((i >> 6) = v) << 7 | ((i >> 4 & 3) = v) << 6 | ((i >> 2 & 3) = v) << 5 | ((i & 3) = v) << 4
     .endrepeat
-    .repeat 256, i
-        .byte (i << 2) & $FF
-    .endrepeat
+.endmacro
+pf_m1:  pixels_of 1
+pf_m2:  pixels_of 2
+pf_m3:  pixels_of 3
 
 .code
 
@@ -157,44 +169,161 @@ cfg_addr:
         sta RIA_STEP0
         rts
 
-; The first and last scanlines with bits, for each player and for the
-; missiles together, searched 8 scanlines at a time.
+; The first and last scanlines with bits of each object, within the
+; snapshots where GTIA displays it.
 extents:
-        ldx #4
-@col:   txa
+        ldx #7
+:       lda #1              ; none
+        sta ext_first,x
+        stz ext_last,x
+        dex
+        bpl :-
+        ldx #3
+@player:
+        jsr displayed
+        bcc @nextp
+        txa
         clc
         adc #4
+        jsr ext_column
+        bcs @nextp
+        lda tmp1
+        sta ext_first,x
+        lda tmp2
+        sta ext_last,x
+@nextp: dex
+        bpl @player
+        ; The missiles share a column. Their extent together bounds a
+        ; search, a scanline at a time, for each missile's.
+        lda #$FF
+        sta tmp5
+        stz tmp6
+        ldx #7
+@shown: jsr displayed
+        bcc :++
+        lda tmp1
+        cmp tmp5
+        bcs :+
+        sta tmp5
+:       lda tmp2
+        cmp tmp6
+        bcc :+
+        sta tmp6
+:       dex
         cpx #4
+        bcs @shown
+        lda tmp6
         bne :+
+        rts
+:       sta tmp2
+        lda tmp5
+        sta tmp1
         lda #3
-:       clc
+        jsr ext_column
+        bcc :+
+        rts
+:       ldy tmp1
+@row:   jsr ext_f
+        beq @nextr
+        ldx #4
+@mis:   sta tmp3
+        and #3
+        beq :++
+        lda ext_last,x
+        bne :+
+        tya
+        sta ext_first,x
+:       tya
+        sta ext_last,x
+:       lda tmp3
+        lsr
+        lsr
+        inx
+        cpx #8
+        bne @mis
+@nextr: cpy tmp2
+        iny
+        bcc @row
+        rts
+
+; Carry set when GTIA displays object X in some snapshot, at HPOS 34-221.
+; The first and last scanlines of those snapshots are in tmp1 and tmp2.
+displayed:
+        stx tmp3
+        lda #$FF
+        sta tmp1
+        stz tmp2
+        ldy #0
+@snap:  cpy snap_count
+        beq @done
+        tya
+        asl
+        asl
+        asl
+        ora tmp3
+        tax
+        lda snap_hpos,x
+        cmp #34
+        bcc @next
+        cmp #222
+        bcs @next
+        lda snap_line,y
+        clc
+        adc #8
+        cmp tmp1
+        bcs :+
+        sta tmp1
+:       lda #247
+        iny
+        cpy snap_count
+        beq :+
+        lda snap_line,y
+        clc
+        adc #7
+:       dey
+        sta tmp2
+@next:  iny
+        bra @snap
+@done:  ldx tmp3
+        lda tmp2
+        cmp #1
+        rts
+
+; The first and last scanlines with bits in page PMBASE+A, from scanline
+; tmp1 to tmp2, into tmp1 and tmp2, searched 8 scanlines at a time. Carry
+; set when there are none.
+ext_column:
+        clc
         adc PMBASE
 .repeat 8, k
         sta .ident(.sprintf("ext_g%d", k))+2
 .endrepeat
         sta ext_f+2
-        ; Down from scanline 8
-        ldy #8
+        ldy tmp1
 @down:  jsr ext_group
         bne @first
         tya
         clc
         adc #8
+        bcs @none
         tay
-        cpy #248
-        bne @down
-        lda #1              ; none
-        sta ext_first,x
-        stz ext_last,x
-        bra @next
+        cpy tmp2
+        bcc @down
+        beq @down
+@none:  sec
+        rts
 @first: jsr ext_f
         bne :+
         iny
         bra @first
-:       tya
-        sta ext_first,x
-        ; Up from scanline 247
-        ldy #240
+:       cpy tmp2
+        beq :+
+        bcs @none
+:       sty tmp4
+        lda tmp2
+        sec
+        sbc #7
+        tay
 @up:    jsr ext_group
         bne @last
         tya
@@ -205,15 +334,18 @@ extents:
 @last:  tya
         clc
         adc #7
-        tay
+        cmp tmp2
+        bcc :+
+        lda tmp2
+:       tay
 :       jsr ext_f
         bne :+
         dey
         bra :-
-:       tya
-        sta ext_last,x
-@next:  dex
-        bpl @col
+:       sty tmp2
+        lda tmp4
+        sta tmp1
+        clc
         rts
 
 ; The bits of 8 scanlines from Y, or of scanline Y, of the column the
@@ -276,11 +408,7 @@ missile_pixels:
 
 ; The sprites and segments of object obj.
 build:
-        lda obj
-        cmp #4
-        bcc :+
-        lda #4
-:       tax
+        ldx obj
         lda ext_first,x
         sta row_first
         lda ext_last,x
@@ -339,11 +467,12 @@ build:
         tay
         lda size_offset,y
         sta obj_size
-        ; Only a position on the canvas
+        ; GTIA draws nothing and finds no collisions in the horizontal
+        ; blank, color clocks 222 to 33.
         lda obj_hpos
-        cmp #40
+        cmp #34
         bcc @next
-        cmp #208
+        cmp #222
         bcs @next
         jsr add_segment
         jsr add_sprites
@@ -500,8 +629,9 @@ collide:
         bpl :-
         ldx #0
 @seg:   cpx nsegs
-        beq @done
-        stx tmp8
+        bne :+
+        jmp @done
+:       stx tmp8
         lda seg_obj,x
         sta obj
         lda seg_hpos,x
@@ -509,6 +639,8 @@ collide:
         lda seg_size,x
         sta obj_size
         jsr obj_base
+        jsr pf_setup
+        jsr candidates
         ldx tmp8
         ldy seg_first,x
 @row:   jsr row_bits
@@ -516,14 +648,26 @@ collide:
         sta tmp7            ; the object's pixels on this scanline
         sty tmp6
         jsr playfield
+        lda ncand
+        beq :+
         jsr players
-        ldy tmp6
+:       ldy tmp6
 @next:  ldx tmp8
         tya
         cmp seg_last,x
         iny
         bcc @row
-        inx
+        lda pf_bits
+        beq @none
+        ldy obj
+        cpy #4
+        bcs :+
+        ora coll+4,y        ; P0PF-P3PF
+        sta coll+4,y
+        bra @none
+:       ora coll-4,y        ; M0PF-M3PF
+        sta coll-4,y
+@none:  inx
         bra @seg
 @done:  ldx #15
 :       lda coll,x
@@ -532,114 +676,184 @@ collide:
         bpl :-
         rts
 
-; Playfield colors under pixels tmp7 of obj on scanline tmp6. Only color
-; clocks 48-207 have playfield.
+; Only color clocks 48-207 have playfield.
+pf_setup:
+        stz pf_bits
+        lda #$FF
+        sta pf_line
+        sta pf_rmask
+        stz pf_lshift
+        lda obj_hpos
+        cmp #48
+        bcs :+
+        eor #$FF            ; the object starts 48-hpos pixels early
+        sec
+        adc #48
+        sta pf_lshift
+        cmp #8
+        bcc @left
+        stz pf_rmask
+@left:  lda #48
+        sta pf_h
+        rts
+:       sta pf_h
+        sbc #200            ; hpos-200 pixels are past 207
+        bcc @done
+        beq @done
+        tax
+        lda #0
+        cpx #8
+        bcs :+
+        lda right_mask,x
+:       sta pf_rmask
+@done:  rts
+
+right_mask:
+        .byte $FF, $FE, $FC, $F8, $F0, $E0, $C0, $80
+
+; Playfield colors under pixels tmp7 of obj on scanline tmp6, into
+; pf_bits.
 playfield:
         lda tmp6
         sec
         sbc #8
         tax
-        lda sl_line,x
-        cmp #$FF
+        ldy sl_line,x
+        cpy #$FF
         bne :+
         rts
-:       sta tmp5            ; mode line
-        tay
-        txa
+:       txa
         clc
         adc line_row,y
         sta tmp4            ; glyph row
-        lda obj_hpos
-        sta tmp3            ; color clock of the next pixel
+        cpy pf_line
+        beq :+
+        jsr pf_chars
+:       ; The pixels from the first clock of the first byte, in tmp2 and
+        ; tmp3
         lda tmp7
-        sta tmp2            ; pixels left
-        lda #$FF
-        sta pf_byte
-@clock: asl tmp2
-        bcc @skip
-        lda tmp3
-        cmp #48
-        bcc @skip
-        cmp #208
-        bcs @skip
-        jsr pixel
-@skip:  inc tmp3
-        lda tmp2
-        bne @clock
-        rts
-
-; The playfield color at color clock tmp3 of mode line tmp5, into the
-; collision register of obj. The glyph byte is kept for the next pixel.
-pixel:
-        ldx tmp5
-        sec
-        sbc line_xoff,x     ; color clocks into the line
-        tay
-        lsr
-        lsr
-        cmp pf_byte
-        beq @cached
-        sta pf_byte
-        clc
-        adc line_msc_lo,x
-        sta ptr3
-        ; ANTIC's memory scan counter wraps within 4K.
-        lda line_msc_hi,x
-        adc #0
-        eor line_msc_hi,x
-        and #$0F
-        eor line_msc_hi,x
-        sta ptr3+1
-        lda (ptr3)          ; character
-        sta pf_char
-        and #$7F            ; ptr2 = CHBASE*256 + 8*character
-        stz ptr2+1
-        asl
-        asl
-        rol ptr2+1
-        asl
-        rol ptr2+1
-        sta ptr2
-        lda ptr2+1
-        adc line_chbase,x
-        sta ptr2+1
-        phy
+        and pf_rmask
+        ldx pf_lshift
+        beq :++
+:       asl
+        dex
+        bne :-
+:       stz tmp3
+        ldx pf_shift
+        beq :++
+:       lsr
+        ror tmp3
+        dex
+        bne :-
+:       sta tmp2
         ldy tmp4
-        lda (ptr2),y
-        sta pf_glyph
-        ply
-@cached:
-        tya
-        and #3
-        tax
-        ldy pf_glyph
-        lda pixel_value,y
-:       dex
-        bmi :+
-        lda pixel_value+256,y
-        tay
-        bra :-
-:       and #3
+        and #$F0
+        beq :+
+        sta tmp5
+pf_gl0: ldx $FFFF,y
+        beq :+
+        lda pf_c3
+        jsr pf_colors
+:       lda tmp2
+        asl
+        asl
+        asl
+        asl
+        beq :+
+        sta tmp5
+pf_gl1: ldx $FFFF,y
+        beq :+
+        lda pf_c3+1
+        jsr pf_colors
+:       lda tmp3
         bne :+
         rts
-:       cmp #3
-        bne @set            ; PF0 is 1, PF1 is 2
-        lda #4              ; PF2, or PF3 with bit 7
-        bit pf_char
-        bpl @set
-        lda #8
-@set:   ldx obj
-        cpx #4
-        bcs :+
-        ora coll+4,x        ; P0PF-P3PF
-        sta coll+4,x
+:       sta tmp5
+pf_gl2: ldx $FFFF,y
+        bne :+
         rts
-:       ora coll-4,x        ; M0PF-M3PF
-        sta coll-4,x
+:       lda pf_c3+2
+        jmp pf_colors
+
+; The colors of glyph byte X under pixels tmp5, into pf_bits. Pixel value
+; 3 is color A.
+pf_colors:
+        sta tmp1
+        lda pf_m1,x
+        and tmp5
+        beq :+
+        lda #1
+        tsb pf_bits
+:       lda pf_m2,x
+        and tmp5
+        beq :+
+        lda #2
+        tsb pf_bits
+:       lda pf_m3,x
+        and tmp5
+        beq :+
+        lda tmp1
+        tsb pf_bits
+:       rts
+
+; The three glyphs under the object on mode line Y, as the operands of
+; pf_gl0-2. Pixel value 3 is PF3 in a character with bit 7 set, else PF2.
+pf_chars:
+        sty pf_line
+        lda line_chbase,y
+        sta tmp1
+        lda pf_h
+        sec
+        sbc line_xoff,y     ; color clocks into the line
+        tax
+        and #3
+        sta pf_shift
+        txa
+        lsr
+        lsr
+        clc
+        adc line_msc_lo,y
+        sta ptr2
+        ; ANTIC's memory scan counter wraps within 4K.
+        lda line_msc_hi,y
+        adc #0
+        eor line_msc_hi,y
+        and #$0F
+        eor line_msc_hi,y
+        sta ptr2+1
+.repeat 3, k
+        lda (ptr2)
+        ldx #4
+        asl
+        bcc :+
+        ldx #8
+:       stx pf_c3+k
+        stz tmp5            ; CHBASE*256 + 8*(character & $7F)
+        asl
+        rol tmp5
+        asl
+        rol tmp5
+        sta .ident(.sprintf("pf_gl%d", k))+1
+        lda tmp5
+        adc tmp1
+        sta .ident(.sprintf("pf_gl%d", k))+2
+    .if k < 2
+        inc ptr2
+        bne :+
+        lda ptr2+1
+        inc a
+        eor ptr2+1
+        and #$0F
+        eor ptr2+1
+        sta ptr2+1
+:
+    .endif
+.endrepeat
         rts
 
-; Players under pixels tmp7 of obj on scanline tmp6.
-players:
+; The player segments that obj can overlap.
+candidates:
+        stz ncand
         ldx #0
 @seg:   cpx nsegs
         beq @done
@@ -648,15 +862,46 @@ players:
         bcs @next
         cmp obj
         beq @next
-        lda tmp6
+        ldy tmp8
+        lda seg_last,y
         cmp seg_first,x
         bcc @next
         lda seg_last,x
-        cmp tmp6
+        cmp seg_first,y
         bcc @next
-        jsr overlap
+        lda seg_hpos,x
+        sec
+        sbc obj_hpos
+        bcs :+
+        eor #$FF
+        inc a
+:       cmp #8
+        bcs @next
+        txa
+        ldy ncand
+        sta cand,y
+        inc ncand
 @next:  inx
         bra @seg
+@done:  rts
+
+; Players under pixels tmp7 of obj on scanline tmp6.
+players:
+        ldy #0
+@cand:  cpy ncand
+        beq @done
+        phy
+        ldx cand,y
+        lda tmp6
+        cmp seg_first,x
+        bcc :+
+        lda seg_last,x
+        cmp tmp6
+        bcc :+
+        jsr overlap
+:       ply
+        iny
+        bra @cand
 @done:  rts
 
 ; A pixel of obj on a pixel of player seg_obj,x sets the bit of that
@@ -676,8 +921,6 @@ overlap:
         sec
         sbc obj_hpos
         bcc @left
-        cmp #8
-        bcs @none
         tay
         lda tmp7            ; obj is left of the player
 :       dey
@@ -688,8 +931,6 @@ overlap:
         bra @test
 @left:  eor #$FF
         inc a
-        cmp #8
-        bcs @none
         tay
         lda tmp3            ; the player is left of obj
 :       dey

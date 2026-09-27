@@ -14,7 +14,20 @@ at its original addresses (`fort1.s` to `fort8.s`, `fnt1.s`, `fnt2.s` and
 and OS on the Picocomputer: `antic.s` draws the display lists with the VGA,
 `gtia.s` draws the players and missiles as sprites and finds their
 collisions, `pokey.s` plays the sound on the PSG, `input.s` reads the
-keyboard and gamepads, and `os.s` runs the vertical blank.
+keyboard and gamepads, and `os.s` runs the vertical blank. The main
+program runs as fast as it ran on an NTSC Atari: each frame it has the
+cycles that the Atari display DMA and interrupts left it.
+
+### Controls
+
+| Atari | Keyboard | Gamepad |
+|---|---|---|
+| Joystick | Arrows, WASD or the keypad | D-pad or left stick |
+| Fire | Ctrl, Alt, Z, X or Enter | A, B, X or Y |
+| START | F4 | Start |
+| SELECT | F3 | Select |
+| OPTION | F2 | L1 |
+| Pause (space bar) | Space or P | R1 |
 
 The Picocomputer 6502 build uses the
 [RP6502 SDK](https://picocomputer.github.io/sdk.html) and the cc65 compiler.

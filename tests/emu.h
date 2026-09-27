@@ -15,7 +15,9 @@ typedef struct
     char reply[4096];
 } emu_t;
 
-bool emu_start(emu_t *emu, const char *rom);
+/* Start the ROM with RAM and XRAM filled as --fill gives, "random" or a
+   byte. */
+bool emu_start(emu_t *emu, const char *rom, const char *fill);
 void emu_stop(emu_t *emu);
 
 /* Send one script command and return its reply, or NULL once the

@@ -4,18 +4,20 @@
 .include "atari.inc"
 
 .import CART_START
-.import antic_init, antic_frame, antic_rainbow
+.import antic_init, antic_frame, antic_tiles, antic_rainbow
 .import gtia_init, gtia_frame
 .import pokey_init, pokey_frame
 .import input_init, input_frame, input_stick, input_trig
 .import __BSS_RUN__, __BSS_SIZE__
-.export RAINBOW, LEAVE_VBI, PACE, xreg_call, xreg_buf, read_t2, irq_cycles, overruns, phase, profile, pace_calls
+.export RAINBOW, LEAVE_VBI, xreg_call, xreg_buf, read_t2, atari_cycles, overruns
 .exportzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7, tmp8
 
-; Main-thread cycles a frame in GO mode: those of the Atari, less its
-; display DMA and its interrupt work. The main loop then runs 0.54 times a
-; frame at the start of the first level, as it does on the Atari.
-PACE_CYCLES = 14500
+; The main thread runs as fast as it ran on an NTSC Atari, which has the
+; cycles of a frame that DMA and the interrupts leave. MAIN_CYCLES is a
+; frame of 262 scanlines of 114 cycles, less the 9 cycles of each scanline
+; that memory refresh takes. With it the GO mode main loop at the start of
+; the first level runs 0.30 passes a frame, and 0.31 on the Atari.
+MAIN_CYCLES = 262 * (114 - 9)
 
 .zeropage
 ptr1:   .res 2
@@ -31,18 +33,15 @@ tmp7:   .res 1
 tmp8:   .res 1
 
 .bss
-irq_start:   .res 2         ; VIA timer 2 when the frame began
-irq_cycles:  .res 2         ; cycles the last frame took, modulo 65536
-irq_vsync:   .res 1         ; RIA_VSYNC when the frame began
-overruns:    .res 1         ; frames that ran into the next VSYNC
-phase:       .res 32        ; cycles into the frame at the end of each part
-xreg_buf:    .res 4 + 2 * 8 ; device, channel, address, bytes, values
-irq_depth:   .res 1         ; nonzero while a frame is being run
-t2_last:     .res 2         ; VIA timer 2 at the last mark
-main_cycles: .res 3         ; main-thread cycles since the last PACE
-budget:      .res 3         ; signed main-thread cycles left
-pace_frame:  .res 1         ; RTCLOK+2 at the last PACE
-pace_calls:  .res 1         ; main loop passes in GO mode
+atari_cycles: .res 2        ; the DMA and interrupt cycles of this frame
+slice:        .res 2        ; main-thread cycles in VIA timer 1, or 0
+slice_t2:     .res 2        ; VIA timer 2 when timer 1 started
+carry:        .res 2        ; main-thread cycles the last frame had no room for
+irq_vsync:    .res 1        ; RIA_VSYNC when the frame began
+vbi_t2:       .res 2        ; VIA timer 2 when the vertical blank began
+overruns:     .res 1        ; frames that ran into the next VSYNC
+xreg_buf:     .res 4 + 2 * 8 ; device, channel, address, bytes, values
+irq_depth:    .res 1        ; nonzero while a frame is being run
 
 .segment "STARTUP"
         jmp boot
@@ -76,9 +75,11 @@ boot:
         dex
         bne :-
 :
-        ; VIA timer 2 runs free as a cycle counter.
-        lda #$20
+        ; VIA timer 1 is one-shot and timer 2 runs free as a cycle counter.
+        lda #$E0
         trb VIA_CR
+        lda #$7F
+        sta VIA_IER
         lda #$FF
         sta VIA_T2CL
         sta VIA_T2CH
@@ -98,18 +99,17 @@ boot:
         sta $FFFE
         lda #>irq
         sta $FFFF
-        stz irq_depth
         jsr antic_init
         jsr gtia_init
         jsr pokey_init
         jsr input_init
-        jsr mark
         lda #$80
         sta RIA_IRQ
         jmp CART_START
 
-; VSYNC. The frame just ending is displayed and its collisions are found,
-; then the Atari vertical blank runs as the OS ran it.
+; VSYNC, or the end of the main thread's cycles. The frame just ending is
+; displayed and its collisions are found, then the Atari vertical blank runs
+; as the OS ran it.
 irq:
         pha
         txa
@@ -117,42 +117,65 @@ irq:
         tya
         pha
         cld
-        lda RIA_IRQ
+        lda slice
+        ora slice+1
+        beq @vsync
+        lda #$40            ; no more timer 1 interrupts
+        sta VIA_IER
+        bit VIA_IFR
+        bvc @early
+        ; The main thread has run its cycles, so the CPU waits for VSYNC.
+        lda irq_vsync
+:       cmp RIA_VSYNC
+        beq :-
+        bra @done
+@early: ; VSYNC came first, and the next frame has the cycles left over.
+        jsr read_t2
+        sta tmp1
+        stx tmp2
+        sec
+        lda slice_t2
+        sbc tmp1
+        sta tmp1
+        lda slice_t2+1
+        sbc tmp2
+        sta tmp2
+        sec
+        lda slice
+        sbc tmp1
+        sta carry
+        lda slice+1
+        sbc tmp2
+        sta carry+1
+        bcs @done
+        stz carry
+        stz carry+1
+@done:  stz slice
+        stz slice+1
+@vsync: lda RIA_IRQ
         lda irq_depth
         beq @frame
         ; A VSYNC during the end of the previous one. The Atari OS runs
         ; only the first stage of its vertical blank then.
+        inc overruns
+        lda RIA_VSYNC
+        sta irq_vsync
         jsr rtclock
         jmp exit
 @frame:
         inc irq_depth
-        jsr read_t2
-        sta irq_start
-        stx irq_start+1
-        jsr mark
-        clc
-        adc main_cycles
-        sta main_cycles
-        txa
-        adc main_cycles+1
-        sta main_cycles+1
-        bcc :+
-        inc main_cycles+2
-:       jsr add_budget
         lda RIA_VSYNC
         sta irq_vsync
+        stz atari_cycles
+        stz atari_cycles+1
         jsr antic_frame
-        ldy #0
-        jsr profile
         jsr gtia_frame
-        ldy #2
-        jsr profile
+        jsr antic_tiles
         jsr pokey_frame
-        ldy #4
-        jsr profile
         jsr input_frame
-        ldy #6
-        jsr profile
+        jsr read_t2
+        sta vbi_t2
+        stx vbi_t2+1
         bit NMIEN
         bvc xitvbv
         jmp (VVBLKI)
@@ -182,26 +205,69 @@ sysvbv:
         jmp (VVBLKD)
 
 xitvbv:
+        sei                 ; VERTBLKD comes here with interrupts enabled
         stz irq_depth
-        ldy #8
-        jsr profile
+        ; The vertical blank is Atari interrupt time.
+        jsr read_t2
+        sta tmp1
+        stx tmp2
+        sec
+        lda vbi_t2
+        sbc tmp1
+        tay
+        lda vbi_t2+1
+        sbc tmp2
+        tax
+        tya
+        clc
+        adc atari_cycles
+        sta atari_cycles
+        txa
+        adc atari_cycles+1
+        sta atari_cycles+1
         lda RIA_VSYNC
         cmp irq_vsync
         beq :+
-        inc overruns
-:       jsr read_t2
-        sta tmp1
-        sec
-        lda irq_start
-        sbc tmp1
-        sta irq_cycles
-        stx tmp1
-        lda irq_start+1
-        sbc tmp1
-        sta irq_cycles+1
-exit:
-        jsr mark
-        pla
+        inc overruns        ; VSYNC is pending, so the next frame starts
+        bra exit
+        ; The main thread runs until timer 1 ends its cycles.
+:       sec
+        lda #<MAIN_CYCLES
+        sbc atari_cycles
+        tay
+        lda #>MAIN_CYCLES
+        sbc atari_cycles+1
+        tax
+        bcs :+
+        ldy #0
+        ldx #0
+:       tya
+        clc
+        adc carry
+        tay
+        txa
+        adc carry+1
+        tax
+        bcc :+
+        ldy #$FF
+        ldx #$FF
+:       stz carry
+        stz carry+1
+        cpx #0
+        bne :+
+        cpy #64
+        bcs :+
+        ldy #64
+:       sty slice
+        stx slice+1
+        sty VIA_T1CL
+        stx VIA_T1CH
+        jsr read_t2
+        sta slice_t2
+        stx slice_t2+1
+        lda #$C0
+        sta VIA_IER
+exit:   pla
         tay
         pla
         tax
@@ -231,133 +297,6 @@ LEAVE_VBI:
         lda RIA_VSYNC
 :       cmp RIA_VSYNC
         beq :-
-        rts
-
-; The Atari runs the GO mode main loop as often as its CPU allows, so the
-; game speed of pods, tanks and missiles follows the main loop. The main
-; thread gets the cycles it had on the Atari in each frame.
-PACE:
-        php
-        sei
-        inc pace_calls
-        lda RTCLOK+2
-        sec
-        sbc pace_frame
-        cmp #3
-        bcc @count
-        ; Not paced since two frames ago, so start over.
-        stz budget
-        stz budget+1
-        stz budget+2
-        stz main_cycles
-        stz main_cycles+1
-        stz main_cycles+2
-        jsr mark
-        bra @done
-@count:
-        jsr mark
-        clc
-        adc main_cycles
-        sta main_cycles
-        txa
-        adc main_cycles+1
-        sta main_cycles+1
-        lda #0
-        adc main_cycles+2
-        sta main_cycles+2
-        sec
-        lda budget
-        sbc main_cycles
-        sta budget
-        lda budget+1
-        sbc main_cycles+1
-        sta budget+1
-        lda budget+2
-        sbc main_cycles+2
-        sta budget+2
-        stz main_cycles
-        stz main_cycles+1
-        stz main_cycles+2
-@wait:
-        bit budget+2
-        bpl @done
-        lda RTCLOK+2
-        plp
-        php
-:       cmp RTCLOK+2
-        beq :-
-        ; The wait is not main-thread work.
-        sei
-        stz main_cycles
-        stz main_cycles+1
-        stz main_cycles+2
-        jsr mark
-        bra @wait
-@done:
-        lda RTCLOK+2
-        sta pace_frame
-        plp
-        rts
-
-; A frame gives the main thread PACE_CYCLES more, up to one frame ahead.
-add_budget:
-        clc
-        lda budget
-        adc #<PACE_CYCLES
-        sta budget
-        lda budget+1
-        adc #>PACE_CYCLES
-        sta budget+1
-        lda budget+2
-        adc #0
-        sta budget+2
-        bmi @done
-        lda budget+2
-        bne @clamp
-        lda budget
-        cmp #<PACE_CYCLES
-        lda budget+1
-        sbc #>PACE_CYCLES
-        bcc @done
-@clamp:
-        lda #<PACE_CYCLES
-        sta budget
-        lda #>PACE_CYCLES
-        sta budget+1
-        stz budget+2
-@done:
-        rts
-
-; Cycles since the last mark, in AX.
-mark:
-        jsr read_t2
-        tay
-        sec
-        lda t2_last
-        sty t2_last
-        sty tmp1
-        sbc tmp1
-        pha
-        lda t2_last+1
-        stx t2_last+1
-        stx tmp1
-        sbc tmp1
-        tax
-        pla
-        rts
-
-; Cycles since the start of the frame at phase+Y.
-profile:
-        jsr read_t2
-        sta tmp1
-        sec
-        lda irq_start
-        sbc tmp1
-        sta phase,y
-        stx tmp1
-        lda irq_start+1
-        sbc tmp1
-        sta phase+1,y
         rts
 
 ; VIA timer 2 in AX.

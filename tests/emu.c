@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-bool emu_start(emu_t *emu, const char *rom)
+bool emu_start(emu_t *emu, const char *rom, const char *fill)
 {
     int to[2], from[2];
     memset(emu, 0, sizeof(*emu));
@@ -28,7 +28,7 @@ bool emu_start(emu_t *emu, const char *rom)
         close(from[0]);
         close(from[1]);
         execl(FORT_EMU, FORT_EMU, "--script", "-", "--mute",
-              "--seed", "6502", rom, (char *)NULL);
+              "--seed", "6502", "--fill", fill, rom, (char *)NULL);
         _exit(127);
     }
     close(to[0]);

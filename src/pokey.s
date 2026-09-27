@@ -23,13 +23,20 @@ last_f:   .res 4            ; AUDF, AUDC and AUDCTL now on the PSG
 last_c:   .res 4
 last_ctl: .res 1
 
-.rodata
+.segment "TABLES"
 
 ; The PSG frequency of each AUDF, for the 64 kHz, 15 kHz and 1.79 MHz
-; clocks. Frequencies above 65535 are inaudible, so they are cut there.
+; clocks, as rows of bits 0-7, 8-15 and 16-23. The buzz of the polynomial
+; counters is a 15th or a 31st of a frequency that can be above 65535.
 .macro frequencies k, m
     .repeat 256, i
-        .word (k / (i + m)) - ((k / (i + m)) > $FFFF) * ((k / (i + m)) - $FFFF)
+        .byte <(k / (i + m))
+    .endrepeat
+    .repeat 256, i
+        .byte >(k / (i + m))
+    .endrepeat
+    .repeat 256, i
+        .byte ^(k / (i + m))
     .endrepeat
 .endmacro
 freq64:  frequencies F64K, 1
@@ -192,16 +199,14 @@ channel:
         ldx #>freq179
 @table: sta ptr2
         stx ptr2+1
-        tya
-        asl
-        tay
-        bcc :+
-        inc ptr2+1
-:       lda (ptr2),y
+        lda (ptr2),y
         sta tmp3            ; frequency of the pure tone
-        iny
+        inc ptr2+1
         lda (ptr2),y
         sta tmp4
+        inc ptr2+1
+        lda (ptr2),y
+        sta tmp7
         ; Distortion: bits 7-5 of AUDC.
         lda tmp2
         lsr
@@ -212,12 +217,27 @@ channel:
         tax
         lda wave,x
         sta tmp5
-        ; Buzz from the 4 and 5-bit polynomials repeats every 15 or 31
-        ; POKEY clocks, so it sounds a 15th or a 31st of the pure tone.
+        ; The pure tone repeats every 2 timer pulses, and the buzz of the
+        ; 4 and 5-bit polynomials every 15 or 31, so the buzz sounds 2/15
+        ; or 2/31 of the pure tone.
         lda divisor,x
-        beq @write
+        beq @cut
         sta tmp6
+        asl tmp3
+        rol tmp4
+        rol tmp7
+        lda tmp7
+        cmp tmp6
+        bcs @max
         jsr div_freq
+        bra @write
+        ; Frequencies above 65535 are inaudible, so they are cut there.
+@cut:   lda tmp7
+        beq @write
+@max:
+        lda #$FF
+        sta tmp3
+        sta tmp4
 @write:
         lda tmp3            ; freq
         sta RIA_RW0
@@ -245,9 +265,8 @@ channel:
         stz RIA_RW0         ; pan_gate
         rts
 
-; tmp4:tmp3 = tmp4:tmp3 / tmp6
+; tmp4:tmp3 = tmp7:tmp4:tmp3 / tmp6, where tmp7 < tmp6
 div_freq:
-        stz tmp7
         ldx #16
 :       asl tmp3
         rol tmp4

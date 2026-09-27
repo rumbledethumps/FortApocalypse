@@ -10,9 +10,9 @@ MAX_ROWS    = 32            ; mode lines with a tile row in one frame
 XRAM_TILES0   = $0000       ; 256 4-bit 8x8 tiles, one character set
 XRAM_TILES1   = $2000       ; the second character set
 XRAM_TILEMAP  = $4000       ; MAX_ROWS rows of up to 48 tiles
-XRAM_BACKDROP = $4600       ; 8-bit bitmap, 16x240, one color a row
+XRAM_BACKDROP = $4600       ; 8-bit bitmap, 16x240, each row its own color
 XRAM_SPRITES  = $5500       ; 1-bit sprite images, one byte a row
-XRAM_NTSC     = $6100       ; the 256 Atari colors
+XRAM_BACKPAL  = $6100       ; the colors of the backdrop rows
 XRAM_BANDPAL  = $6300       ; MAX_BANDS palettes of 16 colors
 XRAM_SPRPAL   = $6500       ; MAX_SPRITES palettes of 2 colors
 XRAM_BANDCFG  = $6600       ; MAX_BANDS mode2_config_t
@@ -23,7 +23,7 @@ XRAM_GAMEPAD  = $6930       ; gamepad_t
 XRAM_PSG      = $6A00       ; psg_t
 XRAM_RANDOM   = $8000       ; random bytes for the POKEY RANDOM register
 
-SPRITE_IMAGES = XRAM_NTSC - XRAM_SPRITES
+SPRITE_IMAGES = XRAM_BACKPAL - XRAM_SPRITES
 
 .macro xreg_vga_canvas canvas
     xreg 1, 0, 0, canvas
