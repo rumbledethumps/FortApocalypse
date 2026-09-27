@@ -246,7 +246,7 @@ extents:
         bcc @row
         rts
 
-; Carry set when GTIA displays object X in some snapshot, at HPOS 34-221.
+; Carry set when GTIA displays object X in some snapshot, at HPOS 27-221.
 ; The first and last scanlines of those snapshots are in tmp1 and tmp2.
 displayed:
         stx tmp3
@@ -263,7 +263,7 @@ displayed:
         ora tmp3
         tax
         lda snap_hpos,x
-        cmp #34
+        cmp #34-7
         bcc @next
         cmp #222
         bcs @next
@@ -468,17 +468,22 @@ build:
         lda size_offset,y
         sta obj_size
         ; GTIA draws nothing and finds no collisions in the horizontal
-        ; blank, color clocks 222 to 33.
+        ; blank, color clocks 222 to 33, and the canvas shows 48 to 207.
         lda obj_hpos
-        cmp #34
+        cmp #34-7
         bcc @next
         cmp #222
         bcs @next
         jsr add_segment
+        lda obj_hpos
+        cmp #48-7
+        bcc @next
+        cmp #208
+        bcs @next
         jsr add_sprites
 @next:  ldx tmp8
         inx
-        bra @snap
+        jmp @snap
 
 size_offset:
         .byte 0, 4, 0, 8
@@ -710,6 +715,8 @@ pf_setup:
 
 right_mask:
         .byte $FF, $FE, $FC, $F8, $F0, $E0, $C0, $80
+left_mask:
+        .byte $FF, $7F, $3F, $1F, $0F, $07, $03, $01
 
 ; Playfield colors under pixels tmp7 of obj on scanline tmp6, into
 ; pf_bits.
@@ -939,6 +946,31 @@ overlap:
         bra :-
 :       and tmp7
 @test:  beq @none
+        ; Only color clocks 34-221 collide. The pixels are lined up at the
+        ; rightmost of the two.
+        sta tmp3
+        lda seg_hpos,x
+        cmp obj_hpos
+        bcs :+
+        lda obj_hpos
+:       cmp #34
+        bcs :+
+        eor #$FF
+        sec
+        adc #34
+        tay
+        lda tmp3
+        and left_mask,y
+        bra @clip
+:       sbc #214
+        bcc @same
+        beq @same
+        tay
+        lda tmp3
+        and right_mask,y
+        bra @clip
+@same:  lda tmp3
+@clip:  beq @none
         ldy seg_obj,x
         lda player_bit,y
         ldy obj
