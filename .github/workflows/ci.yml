@@ -58,21 +58,19 @@ jobs:
           path: build/cc65/release/fort.rp6502
           archive: false
 
-      # The web build of the emulator from the latest Picocomputer release,
-      # with the ROM in place of its sample program.
+      # index.html is made for the JS and WASM of this release.
       - name: Make the web page
         if: github.ref == 'refs/heads/master'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release download --repo picocomputer/rp6502 --pattern '*-itch.io.zip' --dir build/web
-          unzip -q build/web/*-itch.io.zip -d build/site
-          rm build/site/*.rp6502 build/site/README.txt
-          cp build/cc65/release/fort.rp6502 build/site/
-          sed -i -e "s|rom: *'[^']*'|rom:    'fort.rp6502'|" \
-                 -e "s|title: *'[^']*'|title:  'Fort Apocalypse'|" build/site/index.html
-          grep -q "rom:    'fort.rp6502'" build/site/index.html
+          base=https://github.com/picocomputer/rp6502/releases/download/v0.34
+          zip=rp6502-0.34-itch.io.zip
+          mkdir -p build/web build/site
+          curl -fsSL -o build/web/SHA256SUMS "$base/SHA256SUMS"
+          curl -fsSL -o "build/web/$zip" "$base/$zip"
+          (cd build/web && grep " $zip\$" SHA256SUMS | sha256sum -c -)
+          unzip -q -j "build/web/$zip" rp6502.js rp6502.wasm -d build/site
+          cp index.html build/cc65/release/fort.rp6502 build/site/
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/master'
