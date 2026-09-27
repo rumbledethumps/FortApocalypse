@@ -26,7 +26,9 @@ READ_USER:
          BNE @2
          JSR CHECK_OPTIONS
          JMP @9
-@2:      CMP #3      ; OPTION
+@2:      CMP #1      ; OPTION and SELECT, sent by Esc
+         BEQ @3
+         CMP #3      ; OPTION
          BEQ @3
          CMP #5      ; SELECT
          BNE @4

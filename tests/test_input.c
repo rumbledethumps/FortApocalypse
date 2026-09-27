@@ -70,6 +70,7 @@ UTEST_F(input, stick)
 UTEST_F(input, fire)
 {
     static const char *const fire[] = {
+        "press 0x2C", /* Space */
         "press 0xE0", /* left Ctrl */
         "press 0xE4", /* right Ctrl */
         "press 0xE2", /* left Alt */
@@ -91,7 +92,7 @@ UTEST_F(input, fire)
         ASSERT_TRUE(emu_ok(emu, "run 2"));
         EXPECT_EQ_MSG(0, fort_ram(emu, TRIG0), fire[i]);
         EXPECT_EQ_MSG(0, fort_ram(emu, STRIG0), fire[i]);
-        ASSERT_TRUE(emu_ok(emu, "release 0xE0 0xE4 0xE2 0xE6 0x1D 0x1B 0x28 0x58"));
+        ASSERT_TRUE(emu_ok(emu, "release 0x2C 0xE0 0xE4 0xE2 0xE6 0x1D 0x1B 0x28 0x58"));
         ASSERT_TRUE(emu_ok(emu, "pad 0 release a b x y"));
         ASSERT_TRUE(emu_ok(emu, "run 2"));
         EXPECT_EQ_MSG(1, fort_ram(emu, TRIG0), fire[i]);
@@ -111,13 +112,9 @@ UTEST_F(input, console)
         {"press 0x3D", 6}, /* F4 */
         {"press 0x3C", 5}, /* F3 */
         {"press 0x3B", 3}, /* F2 */
-        {"pad 0 press start", 6},
-        {"pad 0 press select", 5},
-        {"pad 0 press l1", 3},
         {"press 0x3D 0x3B", 2},
     };
     emu_t *emu = &utest_fixture->emu;
-    ASSERT_TRUE(emu_ok(emu, "pad 0 connect"));
     ASSERT_EQ(7, fort_ram(emu, CONSOL));
     for (unsigned i = 0; i < sizeof(console) / sizeof(console[0]); i++)
     {
@@ -125,30 +122,7 @@ UTEST_F(input, console)
         ASSERT_TRUE(emu_ok(emu, "run 2"));
         EXPECT_EQ_MSG(console[i].consol, fort_ram(emu, CONSOL), console[i].press);
         ASSERT_TRUE(emu_ok(emu, "release 0x3D 0x3C 0x3B"));
-        ASSERT_TRUE(emu_ok(emu, "pad 0 release start select l1"));
         ASSERT_TRUE(emu_ok(emu, "run 2"));
         EXPECT_EQ_MSG(7, fort_ram(emu, CONSOL), console[i].press);
-    }
-}
-
-UTEST_F(input, pause_key)
-{
-    /* The Atari space bar: KBCODE $21, and SKSTAT bit 2 clear while it is
-       held. */
-    static const char *const pause[] = {"press 0x2C", "press 0x13", "pad 0 press r1"};
-    emu_t *emu = &utest_fixture->emu;
-    ASSERT_TRUE(emu_ok(emu, "pad 0 connect"));
-    ASSERT_EQ(0xFF, fort_ram(emu, SKSTAT));
-    for (unsigned i = 0; i < sizeof(pause) / sizeof(pause[0]); i++)
-    {
-        ASSERT_TRUE(emu_ok(emu, "poke $%04X 0", KBCODE));
-        ASSERT_TRUE(emu_ok(emu, "%s", pause[i]));
-        ASSERT_TRUE(emu_ok(emu, "run 2"));
-        EXPECT_EQ_MSG(0xFB, fort_ram(emu, SKSTAT), pause[i]);
-        EXPECT_EQ_MSG(0x21, fort_ram(emu, KBCODE), pause[i]);
-        ASSERT_TRUE(emu_ok(emu, "release 0x2C 0x13"));
-        ASSERT_TRUE(emu_ok(emu, "pad 0 release r1"));
-        ASSERT_TRUE(emu_ok(emu, "run 2"));
-        EXPECT_EQ_MSG(0xFF, fort_ram(emu, SKSTAT), pause[i]);
     }
 }

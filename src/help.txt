@@ -1,9 +1,4 @@
 Fort Apocalypse
 By Steve Hales. Copyright 1982 Synapse Software.
 
-Joystick: arrows, WASD, the keypad, or a d-pad or left stick
-Fire: Ctrl, Alt, Z, X or Enter, or A, B, X or Y
-START: F4 or Start
-SELECT: F3 or Select
-OPTION: F2 or L1
-Pause: Space or P, or R1
+Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.

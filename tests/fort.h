@@ -21,6 +21,8 @@
 #define POD_NUM 0xEB
 #define MAX_PODS 39
 #define GRAV_SKILL 0xF7
+#define PILOT_SKILL 0xF9
+#define CHOPS 0xFB
 #define CHOP_LEFT 0xFC
 #define OPT_NUM 0xFD
 
@@ -51,12 +53,15 @@
 #define SKSTAT 0xD30F
 
 /* HID keys */
+#define KEY_P 0x13
 #define KEY_Z 0x1D
 #define KEY_ENTER 0x28
+#define KEY_ESC 0x29
 #define KEY_SPACE 0x2C
 #define KEY_F2 0x3B
 #define KEY_F3 0x3C
 #define KEY_F4 0x3D
+#define KEY_PAUSE 0x48
 #define KEY_RIGHT 0x4F
 #define KEY_LEFT 0x50
 #define KEY_DOWN 0x51
@@ -79,6 +84,12 @@ bool fort_play(emu_t *emu);
 
 /* A key held for two frames, then released for two. */
 bool fort_tap(emu_t *emu, unsigned key);
+
+/* A button of gamepad 0 held for two frames, then released for two. */
+bool fort_tap_pad(emu_t *emu, const char *button);
+
+/* The options screen settings, one byte each. */
+int fort_settings(emu_t *emu);
 
 /* One byte of RAM or XRAM, or -1 without an answer. */
 int fort_ram(emu_t *emu, unsigned addr);

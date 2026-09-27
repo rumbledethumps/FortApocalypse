@@ -67,6 +67,18 @@ bool fort_tap(emu_t *emu, unsigned key)
            emu_ok(emu, "release 0x%02X", key) && emu_ok(emu, "run 2");
 }
 
+bool fort_tap_pad(emu_t *emu, const char *button)
+{
+    return emu_ok(emu, "pad 0 press %s", button) && emu_ok(emu, "run 2") &&
+           emu_ok(emu, "pad 0 release %s", button) && emu_ok(emu, "run 2");
+}
+
+int fort_settings(emu_t *emu)
+{
+    return fort_ram(emu, GRAV_SKILL) | fort_ram(emu, PILOT_SKILL) << 8 |
+           fort_ram(emu, CHOPS) << 16;
+}
+
 static int byte_at(emu_t *emu, const char *space, unsigned addr)
 {
     char where[16];

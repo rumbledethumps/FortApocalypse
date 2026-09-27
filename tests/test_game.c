@@ -107,23 +107,48 @@ UTEST_F(game, pause)
 {
     emu_t *emu = &utest_fixture->emu;
     int pod, y;
-    ASSERT_TRUE(emu_ok(emu, "press 0x%02X", KEY_SPACE));
-    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 10", MODE, PAUSE_MODE));
-    ASSERT_TRUE(emu_ok(emu, "release 0x%02X", KEY_SPACE));
-    ASSERT_TRUE(emu_ok(emu, "run 2"));
+    ASSERT_TRUE(fort_tap(emu, KEY_P));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, PAUSE_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 5"));
     pod = fort_ram(emu, POD_NUM);
     y = fort_ram(emu, CHOPPER_Y);
     ASSERT_TRUE(emu_ok(emu, "run 250"));
     ASSERT_EQ(PAUSE_MODE, fort_ram(emu, MODE));
     ASSERT_EQ(pod, fort_ram(emu, POD_NUM));
     ASSERT_EQ(y, fort_ram(emu, CHOPPER_Y));
-    ASSERT_TRUE(emu_ok(emu, "press 0x%02X", KEY_SPACE));
-    ASSERT_TRUE(emu_ok(emu, "run 5"));
-    ASSERT_EQ(PAUSE_MODE, fort_ram(emu, MODE));
-    ASSERT_TRUE(emu_ok(emu, "release 0x%02X", KEY_SPACE));
-    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 10", MODE, GO_MODE));
+    ASSERT_TRUE(fort_tap(emu, KEY_P));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, GO_MODE));
     ASSERT_TRUE(emu_ok(emu, "run 30"));
     ASSERT_NE(pod, fort_ram(emu, POD_NUM));
+}
+
+UTEST_F(game, pause_keys)
+{
+    emu_t *emu = &utest_fixture->emu;
+    ASSERT_TRUE(fort_tap(emu, KEY_PAUSE));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, PAUSE_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 5"));
+    ASSERT_TRUE(fort_tap(emu, KEY_PAUSE));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, GO_MODE));
+    ASSERT_TRUE(emu_ok(emu, "pad 0 connect"));
+    ASSERT_TRUE(fort_tap_pad(emu, "start"));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, PAUSE_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 5"));
+    ASSERT_TRUE(fort_tap_pad(emu, "start"));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, GO_MODE));
+}
+
+UTEST_F(game, options)
+{
+    /* Esc ends the game and opens the options screen as it was. */
+    emu_t *emu = &utest_fixture->emu;
+    int settings = fort_settings(emu);
+    ASSERT_TRUE(fort_tap(emu, KEY_ESC));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 60", MODE, OPTION_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 10"));
+    ASSERT_EQ(OPTION_MODE, fort_ram(emu, MODE));
+    ASSERT_EQ(0, fort_ram(emu, OPT_NUM));
+    ASSERT_EQ(settings, fort_settings(emu));
 }
 
 /* The main loop moves 15 pods a pass, and POD_NUM counts them modulo

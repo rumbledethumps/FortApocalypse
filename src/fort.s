@@ -241,6 +241,8 @@ SLAVE_DX     = SLAVE_Y+8
 ;
          .segment "CART"
          .export CART_START
+         .exportzp MODE, DEMO_STATUS, CONSOL_FLAG
+         .exportzp TITLE_MODE, PAUSE_MODE, OPTION_MODE
          .import WSYNC, RAINBOW, LEAVE_VBI
          .import PACKED_MAP_1, PACKED_MAP_2, PACKED_SCAN_1, PACKED_SCAN_2
 ;

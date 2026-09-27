@@ -6,8 +6,7 @@ This is mainly being released for historical reasons. The original code is in th
 [![Play Fort Apocalypse](images/play.png)](https://rumbledethumps.github.io/FortApocalypse/)
 
 [Play it in your browser](https://rumbledethumps.github.io/FortApocalypse/),
-ported to the Picocomputer 6502 and running in its emulator. Click the
-game to start it with sound. The controls are below.
+ported to the Picocomputer 6502 and running in its emulator.
 
 ## Picocomputer 6502
 
@@ -24,14 +23,7 @@ cycles that the Atari display DMA and interrupts left it.
 
 ### Controls
 
-| Atari | Keyboard | Gamepad |
-|---|---|---|
-| Joystick | Arrows, WASD or the keypad | D-pad or left stick |
-| Fire | Ctrl, Alt, Z, X or Enter | A, B, X or Y |
-| START | F4 | Start |
-| SELECT | F3 | Select |
-| OPTION | F2 | L1 |
-| Pause (space bar) | Space or P | R1 |
+Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.
 
 The Picocomputer 6502 build uses the
 [RP6502 SDK](https://picocomputer.github.io/sdk.html) and the cc65 compiler.

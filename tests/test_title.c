@@ -113,6 +113,72 @@ UTEST_F(title, options)
     ASSERT_EQ(1, fort_ram(emu, OPT_NUM));
 }
 
+UTEST_F(title, esc)
+{
+    /* Esc opens the options screen as it was, and Esc there starts a
+       game. */
+    emu_t *emu = &utest_fixture->emu;
+    int settings = fort_settings(emu);
+    ASSERT_TRUE(fort_tap(emu, KEY_ESC));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, OPTION_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 10"));
+    ASSERT_EQ(0, fort_ram(emu, OPT_NUM));
+    ASSERT_EQ(settings, fort_settings(emu));
+    ASSERT_TRUE(fort_tap(emu, KEY_ESC));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 600", MODE, GO_MODE));
+}
+
+UTEST_F(title, options_stick)
+{
+    /* Down and up move between the options, right and left change one. */
+    emu_t *emu = &utest_fixture->emu;
+    ASSERT_TRUE(fort_tap(emu, KEY_ESC));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 30", MODE, OPTION_MODE));
+    ASSERT_TRUE(fort_tap(emu, KEY_DOWN));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 1 30", OPT_NUM));
+    ASSERT_TRUE(fort_tap(emu, KEY_UP));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 0 30", OPT_NUM));
+    ASSERT_TRUE(fort_tap(emu, KEY_UP));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 2 30", OPT_NUM));
+    ASSERT_TRUE(fort_tap(emu, KEY_DOWN));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 0 30", OPT_NUM));
+    ASSERT_TRUE(fort_tap(emu, KEY_RIGHT));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 1 30", GRAV_SKILL));
+    ASSERT_TRUE(fort_tap(emu, KEY_LEFT));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 0 30", GRAV_SKILL));
+    ASSERT_TRUE(fort_tap(emu, KEY_LEFT));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X 2 30", GRAV_SKILL));
+    ASSERT_TRUE(emu_ok(emu, "run 10"));
+    ASSERT_EQ(OPTION_MODE, fort_ram(emu, MODE));
+}
+
+UTEST_F(title, start_pad)
+{
+    /* Start begins a game, and held into it, it does not pause it. */
+    emu_t *emu = &utest_fixture->emu;
+    ASSERT_TRUE(emu_ok(emu, "pad 0 connect"));
+    ASSERT_TRUE(emu_ok(emu, "pad 0 press start"));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 600", MODE, GO_MODE));
+    ASSERT_TRUE(emu_ok(emu, "run 60"));
+    ASSERT_EQ(GO_MODE, fort_ram(emu, MODE));
+    ASSERT_TRUE(emu_ok(emu, "pad 0 release start"));
+    ASSERT_TRUE(emu_ok(emu, "run 30"));
+    ASSERT_EQ(GO_MODE, fort_ram(emu, MODE));
+}
+
+UTEST_F(title, demo_fire)
+{
+    /* Fire during the demo starts a game. */
+    emu_t *emu = &utest_fixture->emu;
+    ASSERT_TRUE(emu_ok(emu, "run 1800"));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 900", MODE, GO_MODE));
+    ASSERT_EQ(0, fort_ram(emu, DEMO_STATUS));
+    ASSERT_TRUE(emu_ok(emu, "run 60"));
+    ASSERT_TRUE(fort_tap(emu, KEY_LCTRL));
+    ASSERT_TRUE(emu_ok(emu, "wait $%02X %u 60", MODE, NEW_LEVEL_MODE));
+    ASSERT_NE(0, fort_ram(emu, DEMO_STATUS));
+}
+
 UTEST_F(title, demo)
 {
     /* About 32 seconds on the title screen start the demo. */
