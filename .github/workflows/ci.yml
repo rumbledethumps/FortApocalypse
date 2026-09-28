@@ -58,25 +58,6 @@ jobs:
           path: build/cc65/release/fort.rp6502
           archive: false
 
-      # index.html is made for the JS and WASM of this release.
-      - name: Make the web page
-        if: github.ref == 'refs/heads/master'
-        run: |
-          set -euo pipefail
-          base=https://github.com/picocomputer/rp6502/releases/download/v0.34
-          zip=rp6502-0.34-itch.io.zip
-          mkdir -p build/web build/site
-          curl -fsSL -o build/web/SHA256SUMS "$base/SHA256SUMS"
-          curl -fsSL -o "build/web/$zip" "$base/$zip"
-          (cd build/web && grep " $zip\$" SHA256SUMS | sha256sum -c -)
-          unzip -q -j "build/web/$zip" rp6502.js rp6502.wasm -d build/site
-          cp index.html build/cc65/release/fort.rp6502 build/site/
-
-      - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/master'
-        with:
-          path: build/site
-
       - name: Publish the release
         if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v3
@@ -94,17 +75,3 @@ jobs:
             Run fort.rp6502 in the emulator, or load it on a Picocomputer.
 
             https://picocomputer.github.io
-
-  pages:
-    needs: fort
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v5
