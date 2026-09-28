@@ -26,6 +26,7 @@ add_custom_command(
 add_executable(fort)
 rp6502_asset(fort help src/help.txt)
 rp6502_executable(fort DATA 0x5000 RESET 0x9200)
+rp6502_web(fort PAGE web/index.html)
 target_link_options(fort PRIVATE
     -C ${CMAKE_CURRENT_SOURCE_DIR}/src/fort.cfg
     "SHELL:-Ln ${CMAKE_CURRENT_BINARY_DIR}/fort.lbl"

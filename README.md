@@ -5,10 +5,8 @@ This is mainly being released for historical reasons. The original code is in th
 
 <!-- rp6502
 preset: cc65/Release
-target: fort
-title: Fort Apocalypse
+publish: fort.zip
 frames: 2170
-footer: Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.
 -->
 [![Play Fort Apocalypse](https://rumbledethumps.github.io/FortApocalypse/fort/screenshot.png)](https://rumbledethumps.github.io/FortApocalypse/fort/)
 
@@ -43,10 +41,12 @@ $ cmake --build --preset cc65/Release
 
 The ROM is `build/cc65/release/fort.rp6502`. Run it in the emulator with
 `tools/rp6502-emu build/cc65/release/fort.rp6502`, or on a Picocomputer.
-In VS Code, choose a cc65 preset and press F5. Each push to master
-publishes the web player to GitHub Pages: the comment above the play
-link names the preset and the target, and `.github/workflows/web.yml`
-builds and publishes it. See
+In VS Code, choose a cc65 preset and press F5, or choose
+"RP6502 (Web)" to play it in a browser. `rp6502_web()` in
+`CMakeLists.txt` packages the ROM with `web/index.html` into
+`build/cc65/release/web/fort.zip`. Each push to master publishes it to
+GitHub Pages: the comment above the play link names the zip, and
+`.github/workflows/web.yml` builds and publishes it. See
 [RP6502-WEB](https://picocomputer.github.io/web.html).
 
 The tests in the `tests` folder are a host C program, built with the
