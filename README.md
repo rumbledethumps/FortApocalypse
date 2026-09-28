@@ -7,9 +7,10 @@ This is mainly being released for historical reasons. The original code is in th
 preset: cc65/Release
 target: fort
 title: Fort Apocalypse
+frames: 2170
 footer: Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.
 -->
-[![Play Fort Apocalypse](images/play.png)](https://rumbledethumps.github.io/FortApocalypse/fort/)
+[![Play Fort Apocalypse](https://rumbledethumps.github.io/FortApocalypse/fort/screenshot.png)](https://rumbledethumps.github.io/FortApocalypse/fort/)
 
 [Play it in your browser](https://rumbledethumps.github.io/FortApocalypse/fort/),
 ported to the Picocomputer 6502 and running in its emulator.
