@@ -43,7 +43,7 @@ The ROM is `build/cc65/release/fort.rp6502`. Run it in the emulator with
 `tools/rp6502-emu build/cc65/release/fort.rp6502`, or on a Picocomputer.
 In VS Code, choose a cc65 preset and press F5, or choose
 "RP6502 (Web)" to play it in a browser. `rp6502_web()` in
-`CMakeLists.txt` packages the ROM with `web/index.html` into
+`CMakeLists.txt` packages the ROM into
 `build/cc65/release/web/fort.zip`. Each push to master publishes it to
 GitHub Pages: the comment above the play link names the zip, and
 `.github/workflows/web.yml` builds and publishes it. See

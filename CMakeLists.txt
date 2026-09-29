@@ -26,7 +26,10 @@ add_custom_command(
 add_executable(fort)
 rp6502_asset(fort help src/help.txt)
 rp6502_executable(fort DATA 0x5000 RESET 0x9200)
-rp6502_web(fort PAGE web/index.html)
+rp6502_web(fort EMULATOR tools/rp6502-web.zip CONFIG [[
+    title: 'Fort Apocalypse',
+    footer: 'Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.',
+]])
 target_link_options(fort PRIVATE
     -C ${CMAKE_CURRENT_SOURCE_DIR}/src/fort.cfg
     "SHELL:-Ln ${CMAKE_CURRENT_BINARY_DIR}/fort.lbl"
