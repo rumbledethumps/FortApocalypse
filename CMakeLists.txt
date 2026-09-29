@@ -26,7 +26,7 @@ add_custom_command(
 add_executable(fort)
 rp6502_asset(fort help src/help.txt)
 rp6502_executable(fort DATA 0x5000 RESET 0x9200)
-rp6502_web(fort EMULATOR tools/rp6502-web.zip CONFIG [[
+rp6502_web(fort CONFIG [[
     title: 'Fort Apocalypse',
     footer: 'Arrows, WASD or keypad to move, Space to fire, P to pause, Esc for options.',
 ]])
